@@ -17,11 +17,30 @@ mask_embed = seq_len
 q = torch.randn(batch_size, n_head, seq_len, head_embd).cuda()
 k = torch.randn(batch_size, n_head, seq_len, head_embd).cuda()
 v = torch.randn(batch_size, n_head, seq_len, head_embd).cuda()
-mf = (torch.rand(batch_size, seq_len, mask_embed) < 0.065).to(dtype=torch.int32)
-# mf = torch.ones(batch_size, seq_len, seq_len, dtype=torch.int32)
-mask = (ein.einsum(mf, mf, "b l1 d, b l2 d -> b l1 l2") > 0).to(torch.bool)
-mf = mf.cuda()
-mask = ein.repeat(mask, "b l1 l2 -> b h l1 l2", h=n_head).cuda()
+
+
+def make_mask():
+    print("Make mask start")
+    i = 0
+    while True:
+        i += 1
+        mf = (torch.rand(batch_size, seq_len, mask_embed) < 0.065).to(dtype=torch.int32)
+        # mf = torch.ones(batch_size, seq_len, seq_len, dtype=torch.int32)
+        mask = (ein.einsum(mf, mf, "b l1 d, b l2 d -> b l1 l2") > 0).to(torch.bool)
+        mf = mf.cuda()
+        mask = ein.repeat(mask, "b l1 l2 -> b h l1 l2", h=n_head).cuda()
+
+        if (mask.sum(dim=-1) > 0.1).all():
+            print(f"Make mask ok at iteration {i}")
+            break
+        else:
+            print(f"Make mask failed at iteration {i}, retrying...")
+            print
+
+    return mf, mask
+
+
+mf, mask = make_mask()
 
 
 print("=== profiling manual attention ===")
@@ -38,12 +57,17 @@ with torch.autograd.profiler.profile(use_cuda=True) as prof:
 stats_flash = str(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
 
+print("\n===================== Numerical results =====================\n")
+
+print(
+    f"Attn mask filled: {mask.sum().item() / (batch_size * n_head * seq_len * seq_len)}"
+)
+
+
 diff = minimal_result - manual_result
 print(f"Max manual: {manual_result.abs().max()}")
 print(f"Max diff: {diff.abs().mean() / manual_result.abs().mean()}")
 
-print(mask.sum().item())
-print(batch_size * n_head * seq_len * seq_len)
 
 print(
     "attn values sanity check:",
