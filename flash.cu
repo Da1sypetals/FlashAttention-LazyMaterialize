@@ -73,7 +73,7 @@ void forward_kernel(const float* Q, const float* K, const float* V, const int N,
                 for (int x = 0; x < dm; x++) {
                     masksum += Mi[(tx * dm) + x] * Mj[(y * dm) + x];
                 }
-                printf("(%d)", masksum > 0);
+                // printf("(%d)", masksum > 0);
                 // mask[(Bc * tx) + y] = masksum > 0 ? 1.0f : 0.0f;
                 S[(Bc * tx) + y] += masksum > 0 ? 0.0 : -INFINITY;
             }
